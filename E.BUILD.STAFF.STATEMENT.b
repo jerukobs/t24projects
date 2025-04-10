@@ -1,0 +1,97 @@
+$PACKAGE OISL.RETAIL
+    SUBROUTINE E.BUILD.STAFF.STATEMENT(ENQ.DATA)
+    $INSERT I_COMMON
+    $INSERT I_EQUATE
+    $INSERT I_ENQUIRY.COMMON
+    $INSERT I_F.ACCOUNT
+    $INSERT I_F.USER
+    $INSERT I_F.COMPANY
+    $INSERT I_F.CUSTOMER
+
+
+    LOCATE 'ACCOUNT' IN ENQ.DATA<2,1> SETTING AC.POS ELSE AC.POS = ''
+    IF NOT(AC.POS) THEN
+        LOCATE 'ACCOUNT.NO' IN ENQ.DATA<2,1> SETTING AC.POS ELSE AC.POS = ''
+    END ELSE
+        IF NOT(AC.POS) THEN
+            LOCATE 'ACCOUNT.NUMBER' IN ENQ.DATA<2,1> SETTING AC.POS ELSE AC.POS = ''
+        END ELSE
+            IF NOT(AC.POS) THEN
+                LOCATE 'ACCT.ID' IN ENQ.DATA<2,1> SETTING AC.POS ELSE AC.POS = ''
+            END ELSE
+                IF NOT(AC.POS) THEN
+                    LOCATE 'SELECT.ACCOUNT' IN ENQ.DATA<2,1> SETTING AC.POS ELSE AC.POS = ''
+                END ELSE
+                    IF NOT(AC.POS) THEN
+                        LOCATE 'ACCT.NUMBER' IN ENQ.DATA<2,1> SETTING AC.POS ELSE AC.POS = ''
+                    END ELSE
+                        IF NOT(AC.POS) THEN
+                            LOCATE 'ACCOUNT.ID' IN ENQ.DATA<2,1> SETTING AC.POS ELSE AC.POS = ''
+                        END ELSE
+                            IF NOT(AC.POS) THEN
+                                LOCATE 'STATEMENT.ID' IN ENQ.DATA<2,1> SETTING AC.POS ELSE AC.POS = ''
+                            END
+                        END
+                    END
+                END
+            END
+        END
+    END
+
+    GET.AC.ID = ENQ.DATA<4,AC.POS>
+    GET.TMP.DCNT = DCOUNT(GET.AC.ID,@VM)
+    IF GET.TMP.DCNT GE 1 THEN
+        GET.TMP.ID = GET.AC.ID<1,1>
+    END
+    IF NOT(GET.AC.ID) THEN RETURN
+
+    FN.AC = 'F.ACCOUNT'
+    F.AC = ''
+    CALL OPF(FN.AC, F.AC)
+
+    FN.CUS = 'F.CUSTOMER'
+    F.CUS = ''
+    CALL OPF(FN.CUS, F.CUS)
+
+    CALL GET.LOC.REF('USER', 'OI.SUPER.VIEW', VIEW.POS)
+    CALL GET.LOC.REF('USER', 'OI.STAFF.CUST', CUST.POS)
+    GET.LOC.TEMP = R.USER<EB.USE.LOCAL.REF>
+    GET.USER.VIEW = GET.LOC.TEMP<1,VIEW.POS>
+    GET.USER.CUST = GET.LOC.TEMP<1,CUST.POS>
+	
+    CHANGE @SM TO @VM IN GET.USER.CUST
+		
+    GET.PROD.LIST = "1011"
+
+    CHANGE ' ' TO @FM IN GET.TMP.ID
+    FOR IDX = 1 TO DCOUNT(GET.TMP.ID,@FM)
+        GET.AC.ID = GET.TMP.ID<IDX>
+
+        CALL F.READ(FN.AC, GET.AC.ID, R.AC, F.AC, AC.ERR)
+        GET.AC.CUST = R.AC<AC.CUSTOMER>
+        GET.AC.CAT = R.AC<AC.CATEGORY>
+        GET.AC.NAME = R.AC<AC.ACCOUNT.TITLE.1>
+
+        IF (GET.AC.CAT MATCHES GET.PROD.LIST) ELSE CONTINUE
+
+        CALL F.READ(FN.CUS, GET.AC.CUST, R.CUS, F.CUS, CUS.ERR)
+        GET.CUS.STATUS = R.CUS<EB.CUS.CUSTOMER.STATUS>
+		
+	IF (GET.AC.CUST MATCHES GET.USER.CUST) THEN
+            RETURN
+	END
+        IF (GET.USER.VIEW EQ '') OR (GET.USER.CUST EQ '') THEN
+            ENQ.ERROR = "Invalid user profile setup. Kindly forward your Account No. to the IT Team for prompt resolution"
+	END		
+        IF (GET.USER.VIEW EQ 'NO') AND (GET.AC.CAT MATCHES GET.PROD.LIST) AND NOT(GET.AC.CUST MATCHES GET.USER.CUST) THEN
+            ENQ.ERROR = 'Sorry! You are not permitted to view Staff Account.'	
+        END
+        IF (GET.USER.VIEW EQ 'YES') AND (GET.AC.CAT MATCHES GET.PROD.LIST) AND NOT(GET.AC.CUST MATCHES GET.USER.CUST) THEN
+            RETURN	
+        END		
+
+    NEXT IDX
+
+    RETURN
+
+END
